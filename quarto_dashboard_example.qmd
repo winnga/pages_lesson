@@ -1,5 +1,5 @@
 ---
-title: "GAPMINDER | LIFE EXPECTANCIES 2007"  
+title: "GAPMINDER | LIFE GDP PER CAPITA 2007"  
 format: dashboard   
 ---
 

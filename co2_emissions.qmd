@@ -1,0 +1,252 @@
+---
+title: "Workshop Exercise: Emissions Data - Table, Map, and Chart"
+format: html
+---
+
+# Introduction
+
+In this exercise, you will work with a CO2 emissions dataset downloaded from Gapminder and produce a report with three tabs: a data table, a line chart, and a choropleth map. 
+
+The goal is to roughly replicate the [Our World in Data visualization page on consumption-based CO<sub>2</sub> emissions](https://ourworldindata.org/grapher/consumption-co2-emissions?tab=table&time=2000..2022).
+
+Be sure to view that page to get an idea of the final product.
+
+# Setup
+
+- You should have forked and cloned this repository to your local machine.
+
+- Now, create and select a virtual environment in VSCode.
+
+- Install the following packages: 
+  - pandas
+  - plotly
+  - itables
+  - ipykernel
+  - jupyter
+  - country_converter
+
+- Download the data from [Gapminder](https://www.gapminder.org/data/) by selecting: *Environment > Emissions > CO2 Total emissions*, then downloading the CSV file into a `data` folder in your repository.
+
+# Data Import
+
+Run the following code to import the necessary libraries:
+
+```{python}
+# Suppress warnings and hide code globally
+import warnings
+warnings.filterwarnings("ignore")
+
+import logging
+logging.getLogger("country_converter").setLevel(logging.ERROR)
+
+import pandas as pd
+import numpy as np
+import plotly.express as px
+from itables import show
+import country_converter as coco
+
+def run_emissions_analysis(file_path):
+    """
+    Function to produce table, line chart, and choropleth map
+    from CO2 emissions CSV
+    """
+```
+
+Load in your dataset from gapminder below. View it in your data viewer to get an idea of the structure.
+
+```{python}
+# Full path to your OWID CO2 CSV
+file_path = r"C:\Users\LENOVO\Documents\GitHub\pages_lesson\owid-co2-data.csv"
+
+# Load the CSV
+df = pd.read_csv(file_path)
+
+# Select relevant columns
+df_co2 = df[["country", "year", "co2"]]
+
+# Pivot the table: countries as rows, years as columns, CO2 as values
+df_pivot = df_co2.pivot(index="country", columns="year", values="co2")
+
+# Optional: reset column names (years) to simple integers
+df_pivot.columns = df_pivot.columns.astype(int)
+
+emissions = df_pivot
+
+emissions_df = df_pivot
+```
+
+# Initial Cleaning
+
+In this dataset, some values are given in thousands, with a "k" used to represent the thousands. This will cause problems when we try to make these columns numeric. So we need to clean this. We'll do this for you, but pay close attention as you might need it for your final project.
+
+First, let's see the issue:
+
+```{python}
+#emissions.query("country == 'China'")[["country",  "2020", "2021", "2022"]]
+# Make sure year columns are integers
+emissions.columns = emissions.columns.astype(int)
+
+# Select China for years 2020, 2021, 2022
+emissions = emissions.loc["China", [2020, 2021, 2022]]
+
+# Keep all countries and years as a DataFrame
+emissions = emissions.copy()  # now emissions_df is definitely a DataFrame
+
+```
+
+Notice the letter "k" at the end of "10.6k" as an example.
+
+We can remove the "k" and multiply those values by 1000 with the following code:
+
+```{python}
+#for col in ["2021", "2022"]:
+#    has_k = emissions[col].str.contains("k")
+#    values = emissions[col].str.replace("k", "")
+#    emissions[col] = np.where(has_k, values.astype#(float) * 1000, values.astype(float))
+```
+
+And check that it worked:
+
+```{python}
+# Make sure year columns in df_pivot are integers
+df_pivot.columns = df_pivot.columns.astype(int)
+
+# Select China for years 2020, 2021, 2022 and keep it as a DataFrame
+china_emissions = df_pivot.loc[["China"], [2020, 2021, 2022]]
+
+```
+
+# Table Section
+
+Our goal is to create a table showing emissions for a few selected years and calculate absolute and relative changes.
+
+1. Subset the data to include `Country`, `2000`, and `2022` columns only.
+2. Calculate an "Absolute Change" column as the difference between 2022 and 2000.
+3. Calculate a "Relative Change" column as the absolute change divided by the 2000 emissions, then multiplied by 100.
+
+```{python}
+# Reset index to make 'country' a column
+table_df = df_pivot.reset_index()[["country", 2000, 2022]].copy()
+
+# Calculate absolute change
+table_df["Absolute Change"] = table_df[2022] - table_df[2000]
+
+# Calculate relative change (%)
+table_df["Relative Change"] = (table_df["Absolute Change"] / table_df[2000]) * 100
+table_df["Relative Change"] = table_df["Relative Change"].round(0).astype(str) + "%"
+
+```
+
+Now we can display this as an interactive table with itables:
+
+```{python}
+#show(table_df)
+```
+
+# Chart Section
+
+Our goal is to create a line chart from 1990 to 2022 for a few selected countries.
+
+1. Melt the original `emissions` dataset so that years become rows.
+2. Filter from 1990 to 2022 only.
+3. Choose 5 countries of your choice.
+4. Create a line chart showing emissions over time for the selected countries with Plotly Express.
+
+```{python}
+# Reset index so 'country' becomes a column
+emissions_reset = df_pivot.reset_index()
+
+# Melt the dataset: years become rows
+emissions_long = emissions_reset.melt(
+    id_vars="country",
+    var_name="year",
+    value_name="emissions"
+)
+
+# Convert year to numeric
+emissions_long["year"] = pd.to_numeric(emissions_long["year"], errors="coerce")
+
+# Convert emissions to numeric, coerce errors to NaN
+emissions_long["emissions"] = pd.to_numeric(
+    emissions_long["emissions"].astype(str).str.replace("−", "-"), errors="coerce"
+)
+
+# Filter years between 1990 and 2022
+emissions_long_1990_2022 = emissions_long.query("year >= 1990 & year <= 2022")
+
+# Select 5 countries
+selected_countries = ["China", "United States", "India", "Germany", "Brazil"]
+emissions_long_subset = emissions_long_1990_2022.query("country in @selected_countries")
+
+# Create line chart
+fig_chart = px.line(
+    emissions_long_subset,
+    x="year",
+    y="emissions",
+    color="country",
+    markers=True,
+    title="CO₂ Emissions (1990–2022) for Selected Countries"
+)
+
+
+```
+
+
+# Mapping Section
+
+This part is done for you.
+
+**Goal:** Create a choropleth map showing global emissions from 1990 to 2022.  
+
+This will be animated by year.
+
+1. Ensure each country has a 3-letter ISO code. We'll use `country_converter` for that.
+2. Create a map with `px.choropleth` and use `animation_frame` to show changes over time.
+
+```{python}
+# Convert country names to ISO3 codes
+emissions_long_1990_2022["country_code"] = coco.convert(
+    emissions_long_1990_2022["country"], to="ISO3"
+)
+
+fig_map = px.choropleth(
+    emissions_long_1990_2022,
+    locations="country_code",
+    color="emissions",
+    hover_name="country",
+    animation_frame="year",
+    title="Global CO2 Emissions (1990-2022)",
+)
+
+```
+
+
+# Final Tabset
+
+Below, we place our results into a tabbed interface.
+
+::: {.panel-tabset}
+
+## Table
+
+```{python}
+show(table_df)
+```
+
+## Chart
+
+```{python}
+fig_chart.show()
+```
+
+## Map
+
+```{python}
+fig_map.show()
+```
+
+:::
+
+# Deploying to GitHub Pages
+
+As a final step, you should follow the steps outlined in the prework to deplioy your report to GitHub Pages. You will be asked to share a link to your report in the course portal

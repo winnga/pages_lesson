@@ -1,0 +1,434 @@
+---
+title: "World Health Statistics Analysis- Tobacco use and alcohol use analysis for 2024"
+author: "Wingston Ng'ambi"
+date: "2025-10-16"
+format: 
+  html:
+    toc: true
+    number-sections: true
+jupyter: python3
+execute:
+  eval: true
+  echo: false
+  warning: false
+  error: false
+---
+
+
+![](https://tse3.mm.bing.net/th/id/OIP.KloHiCL3Dbm27w80iGUxWgHaE3?cb=12&pid=Api){width=500px} 
+
+# Introduction
+The World Health Statistics dataset, provided by the World Health Organization (WHO), offers a comprehensive annual compilation of over 50 health-related indicators across its 194 Member States. This dataset serves as a critical resource for monitoring progress towards the Sustainable Development Goals (SDGs), particularly those related to health and well-being. It encompasses a wide array of data, including metrics on life expectancy, mortality rates, disease prevalence, and access to health services. By analyzing this dataset, researchers and policymakers can gain valuable insights into global health trends, identify disparities among regions and income groups, and inform strategies to improve health outcomes worldwide.
+
+
+# Load & Inspect World Health Statistics dataset
+
+```{python}
+# import standard libraries
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from pathlib import Path
+
+# Helpful display setting
+pd.set_option('display.max_columns', 50)
+
+# Path to processed CSV created by earlier workflow.
+# If you don't have the processed CSV, set `raw_html_path` to the uploaded html
+# and run a separate extraction step. By default we try the processed CSV next to this file.
+processed_csv = Path('GRAPH_tobacco_alcohol_processed.csv')
+
+# Load data, inspect shape and a few rows
+if processed_csv.exists():
+    df = pd.read_csv(processed_csv)
+else:
+    # fallback: try to read a wide table from the workspace if available
+    raise FileNotFoundError('GRAPH_tobacco_alcohol_processed.csv not found; please place it next to this .qmd')
+
+df = pd.read_csv("GRAPH_tobacco_alcohol_processed.csv")
+#df.head(5)
+```
+## World Health Statistics dataset
+
+This dataset contains 220 records and 8 variables, covering key global health indicators from the WHO World Health Statistics. The main variables include Location, Year, Tobacco use (%), Alcohol treatment coverage (%), Drug treatment coverage (%), Alcohol per capita consumption (litres), World Bank region, and Income level. The dataset provides both behavioural and service coverage indicators, allowing comparisons across countries and economic groups. It can be used to analyse global and regional trends in tobacco and alcohol use, treatment coverage, and related health outcomes, supporting evidence-based decision-making and policy planning in global public health.
+
+## Tobacco and alcohol use globally
+The overall average tobacco use (%) across countries and years is 19.98, while the average alcohol consumption (litres per capita) is 5.30. These statistics provide a quick snapshot of harmful substance use worldwide.
+
+```{python}
+#print(f"The overall average tobacco use (%) across countries and years is {df['TobaccoUse_%'].mean():.2f}, "
+#      f"while the average alcohol consumption (litres per capita) is {df['AlcoholPerCapita_Litres'].mean():.2f}. "
+ #     "These statistics provide a quick snapshot of harmful substance use worldwide.")
+
+```
+
+
+## Tobacco and alcohol use by region and income Level
+
+Tobacco and alcohol use vary substantially across regions and income levels. In East Asia & Pacific, middle-income countries show higher tobacco use (28–32%) but lower alcohol consumption (3 litres) compared with high-income countries (20% tobacco, 5.4 litres alcohol). Europe & Central Asia and North America exhibit moderate to high tobacco use (~26%) and higher alcohol consumption (10–11 litres). Latin America & the Caribbean and Sub-Saharan Africa report lower tobacco use (5–14%) and variable alcohol consumption (2–7 litres), while South Asia and the Middle East, North Africa, Afghanistan & Pakistan maintain moderate tobacco use (16–25%) but very low alcohol use (<2 litres). Overall, tobacco tends to be higher in middle-income regions, whereas alcohol consumption is highest in high-income countries, with substantial variation within regions.
+
+```{python}
+# Group by World Bank Region and Income Level
+summary = (
+    df.groupby(['WorldBankRegion', 'IncomeLevel'])
+    .agg(
+        n_countries_tobacco=('TobaccoUse_%', 'count'),
+        avg_tobacco_use=('TobaccoUse_%', 'mean'),
+        sd_tobacco_use=('TobaccoUse_%', 'std'),
+        n_countries_alcohol=('AlcoholPerCapita_Litres', 'count'),
+        avg_alcohol_use=('AlcoholPerCapita_Litres', 'mean'),
+        sd_alcohol_use=('AlcoholPerCapita_Litres', 'std')
+    )
+    .reset_index()
+)
+
+# Round numeric columns
+summary = summary.round({
+    'avg_tobacco_use': 2,
+    'sd_tobacco_use': 2,
+    'avg_alcohol_use': 2,
+    'sd_alcohol_use': 2
+})
+
+# Rename columns for human-readable table
+summary.rename(columns={
+    'WorldBankRegion': 'Region',
+    'IncomeLevel': 'Income Level',
+    'n_countries_tobacco': 'Number of Countries (Tobacco)',
+    'avg_tobacco_use': 'Average Tobacco Use (%)',
+    'sd_tobacco_use': 'SD Tobacco Use',
+    'n_countries_alcohol': 'Number of Countries (Alcohol)',
+    'avg_alcohol_use': 'Average Alcohol Use (litres)',
+    'sd_alcohol_use': 'SD Alcohol Use'
+}, inplace=True)
+
+# Display the humanized summary
+#print(summary)
+```
+
+
+```{python}
+# Keep relevant indicators, make sure numeric columns are clean
+# Expected columns include: Location, Year, TobaccoUse_%, AlcoholPerCapita_Litres,
+# AlcoholTreatmentCoverage_%, DrugTreatmentCoverage_%, WorldBankRegion, IncomeLevel
+
+# convert Year to int where possible
+try:
+    df['Year'] = df['Year'].astype(int)
+except Exception:
+    df['Year'] = pd.to_numeric(df['Year'], errors='coerce').astype('Int64')
+
+# ensure numeric indicators
+numeric_cols = ['TobaccoUse_%', 'AlcoholPerCapita_Litres', 'AlcoholTreatmentCoverage_%', 'DrugTreatmentCoverage_%']
+for c in numeric_cols:
+    if c in df.columns:
+        df[c] = pd.to_numeric(df[c], errors='coerce')
+
+# basic filter: keep rows with at least one of the two main indicators
+df_filtered = df.copy()
+mask = df_filtered[['TobaccoUse_%', 'AlcoholPerCapita_Litres']].notna().any(axis=1)
+df_filtered = df_filtered.loc[mask].reset_index(drop=True)
+
+#print('Filtered shape:', df_filtered.shape)
+
+df_filtered.head()
+```
+
+# Scatter Plot (Tobacco vs Alcohol), animated by Year
+
+The relationship between tobacco use and alcohol consumption per capita shows a gently curved, non-linear pattern. Alcohol consumption tends to rise with increasing tobacco use up to moderate levels, after which it plateaus and declines slightly at higher tobacco prevalence rates. The smoothed curve captures nuanced variations that suggest complex behavioral or contextual factors influencing both habits.
+
+
+A cubic spline regression was used to explore the relationship between the predictor variable and alcohol consumption per capita. The model explained about 10% of the variance (R² = 0.103) across 168 observations, indicating a modest fit. None of the individual spline terms were statistically significant at the 5% level, though one term approached significance (p = 0.071), suggesting some non-linear trends in the data. The resulting curve (shown in the figure) captures subtle fluctuations in alcohol consumption across the predictor range, with peaks and dips reflecting variation that a simple linear model would not detect. Overall, the spline highlights potential non-linear patterns in per capita alcohol use, while the model’s low R² indicates other factors likely contribute to variation.
+
+```{python}
+# Scatter shows relationship between tobacco prevalence (%) and alcohol per capita (litres)
+# Adds cubic spline smoothing with 95% confidence intervals and prints spline equation
+
+import statsmodels.api as sm
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from patsy import dmatrix
+from patsy import bs as patsy_bs  # make sure to reference the correct spline function
+
+# Drop rows missing either indicator
+scatter_df = df_filtered.dropna(subset=['TobaccoUse_%', 'AlcoholPerCapita_Litres']).copy()
+scatter_df['size_bubble'] = scatter_df['AlcoholPerCapita_Litres'].replace(0, np.nan).fillna(0.1)
+
+# Prepare variables
+x = scatter_df['TobaccoUse_%']
+y = scatter_df['AlcoholPerCapita_Litres']
+
+# Create cubic spline basis using patsy
+# Adjust df=5 to control smoothness (higher df = more flexible curve)
+spline_basis = dmatrix("patsy_bs(x, df=5, degree=3, include_intercept=False)", {"x": x}, return_type='dataframe')
+
+# Fit OLS model on spline basis
+spline_model = sm.OLS(y, spline_basis).fit()
+
+# Generate prediction grid
+x_seq = np.linspace(x.min(), x.max(), 200)
+x_pred_basis = dmatrix("patsy_bs(x, df=5, degree=3, include_intercept=False)", {"x": x_seq}, return_type='dataframe')
+pred = spline_model.get_prediction(x_pred_basis)
+pred_summary = pred.summary_frame(alpha=0.05)
+
+# Create interactive scatter plot
+fig = px.scatter(
+    scatter_df,
+    x='TobaccoUse_%',
+    y='AlcoholPerCapita_Litres',
+    size='size_bubble',
+    hover_name='Location',
+    animation_frame='Year' if 'Year' in scatter_df.columns else None,
+    labels={'TobaccoUse_%': 'Tobacco use (%)', 'AlcoholPerCapita_Litres': 'Alcohol (L/person)'},
+    title='Alcohol litres per capital vs tobacco use with cubic spline smoothing (95%CI)'
+)
+
+# Add cubic spline fit line
+fig.add_trace(
+    go.Scatter(
+        x=x_seq,
+        y=pred_summary['mean'],
+        mode='lines',
+        line=dict(color='black', width=3),
+        name='Cubic spline fit'
+    )
+)
+
+# Add 95% confidence interval band
+fig.add_trace(
+    go.Scatter(
+        x=np.concatenate([x_seq, x_seq[::-1]]),
+        y=np.concatenate([pred_summary['mean_ci_upper'], pred_summary['mean_ci_lower'][::-1]]),
+        fill='toself',
+        fillcolor='rgba(0,0,0,0.15)',
+        line=dict(color='rgba(255,255,255,0)'),
+        hoverinfo="skip",
+        name='95% CI'
+    )
+)
+
+fig.update_layout(template='plotly_white', legend_title_text='')
+fig.show()
+
+# Print model summary and readable spline equation
+#print("\nCubic Spline Regression Summary:")
+#print(spline_model.summary())
+
+# Construct symbolic-like equation string
+coeffs = spline_model.params.values
+eq_terms = [f"{coeffs[i]:.4f} * B{i+1}(x)" for i in range(len(coeffs))]
+spline_eq = " + ".join(eq_terms)
+#print("\nApproximate cubic spline equation:")
+#print(f"y = {spline_eq}")
+
+```
+
+# Map of tobacco use globally: 2022
+
+The choropleth map illustrates global tobacco use prevalence in 2022, revealing substantial regional variation. Higher rates of tobacco use are concentrated in parts of Asia and Eastern Europe, where prevalence exceeds 30–40%, while much of Africa and the Americas show comparatively lower rates, generally below 15%. This pattern highlights ongoing disparities in tobacco consumption across regions, likely reflecting differences in regulation, cultural norms, and public health interventions.
+
+```{python}
+# Choropleth map of tobacco use (%)
+# Automatically detects whether to map by ISO code or country name
+
+import plotly.express as px
+import pandas as pd
+
+# Clean and prepare map data
+map_df = df_filtered.dropna(subset=['TobaccoUse_%']).copy()
+
+# Ensure numeric values
+map_df['TobaccoUse_%'] = pd.to_numeric(map_df['TobaccoUse_%'], errors='coerce')
+
+# Choose mapping key: use LocationCode if it exists, otherwise fall back to country names
+if 'LocationCode' in map_df.columns:
+    loc_col = 'LocationCode'
+    print("✅ Mapping by ISO3 country codes.")
+else:
+    loc_col = 'Location'
+    #print("⚠️ Mapping by country names (ensure standard spellings).")
+
+# Build the choropleth
+fig_map = px.choropleth(
+    map_df,
+    locations=loc_col,
+    locationmode='ISO-3' if loc_col == 'LocationCode' else 'country names',
+    color='TobaccoUse_%',
+    hover_name='Location',
+    animation_frame='Year' if 'Year' in map_df.columns else None,
+    color_continuous_scale='YlOrRd',
+    range_color=[map_df['TobaccoUse_%'].min(), map_df['TobaccoUse_%'].max()],
+    labels={'TobaccoUse_%': 'Tobacco use (%)'},
+    title='Global Map of Tobacco Use Prevalence (%)'
+)
+
+# Add styling
+fig_map.update_layout(
+    geo=dict(showframe=False, showcoastlines=False, projection_type='natural earth'),
+    coloraxis_colorbar=dict(title='Tobacco use (%)', ticksuffix='%'),
+    margin=dict(l=0, r=0, t=50, b=0),
+    template='plotly_white'
+)
+
+# Display map
+fig_map.show()
+
+```
+# Map of per capita alcohol use globally: 2022 
+
+The global density map of per capita alcohol use shows substantial regional variation in consumption levels. The highest averages- above 14 to 16 litres per person per year—are observed in parts of Central and Eastern Europe, including countries such as Germany, Czechia, and Lithuania. Moderate consumption, ranging between 6 and 12 litres per person, is common in Western Europe, Australia, Canada, and parts of South America. In contrast, Africa, the Middle East, and South Asia record much lower levels, typically below 2 litres per person, with several countries reporting near-zero consumption. These differences underscore the influence of cultural norms, economic factors, and alcohol control policies on global drinking patterns.
+
+```{python}
+# Density Map (Per Capita Alcohol Use)
+# Shows intensity of alcohol use across countries using a fixed color scale
+
+import plotly.express as px
+import pandas as pd
+
+# Prepare data
+map_alcohol = df_filtered.dropna(subset=['AlcoholPerCapita_Litres']).copy()
+map_alcohol['AlcoholPerCapita_Litres'] = pd.to_numeric(map_alcohol['AlcoholPerCapita_Litres'], errors='coerce')
+
+# Select the most recent year (if dataset covers multiple years)
+if 'Year' in map_alcohol.columns:
+    latest_year = map_alcohol['Year'].max()
+    map_alcohol = map_alcohol[map_alcohol['Year'] == latest_year]
+    #print(f"📅 Showing data for the most recent year: {latest_year}")
+
+# Determine mapping variable (ISO3 or country name)
+if 'LocationCode' in map_alcohol.columns:
+    loc_col = 'LocationCode'
+    loc_mode = 'ISO-3'
+    print("✅ Mapping by ISO3 country codes.")
+else:
+    loc_col = 'Location'
+    loc_mode = 'country names'
+    #print("⚠️ Mapping by country names (ensure standardized spellings).")
+
+# Define a consistent global color scale
+color_min = 0
+color_max = map_alcohol['AlcoholPerCapita_Litres'].max() * 1.05  # add small buffer
+
+# Create the fixed-scale choropleth map
+fig_density = px.choropleth(
+    map_alcohol,
+    locations=loc_col,
+    locationmode=loc_mode,
+    color='AlcoholPerCapita_Litres',
+    hover_name='Location',
+    color_continuous_scale='Blues',
+    range_color=[color_min, color_max],
+    labels={'AlcoholPerCapita_Litres': 'Alcohol (L/person)'},
+    title='Global Map of Per Capita Alcohol Use (Litres per Person)'
+)
+
+# Clean layout for clarity
+fig_density.update_layout(
+    geo=dict(showframe=False, showcoastlines=False, projection_type='natural earth'),
+    coloraxis_colorbar=dict(title='Litres per person', ticksuffix=' L'),
+    margin=dict(l=0, r=0, t=60, b=0),
+    template='plotly_white'
+)
+
+fig_density.show()
+
+```
+
+# Comparison of per capital alcohol use and tobacco use 
+
+The graph shows the mean tobacco and alcohol use across different World Bank regions. Tobacco use is highest in East Asia & Pacific, Europe & Central Asia, and South Asia, with lower levels in Latin America & Caribbean, North Africa & Middle East, and Sub-Saharan Africa. Alcohol consumption per capita is highest in North America and Europe & Central Asia, moderate in Latin America & Caribbean and Sub-Saharan Africa, and lowest in East Asia & Pacific, Middle East & North Africa, and South Asia, highlighting regional differences in substance use patterns.
+
+
+```{python}
+import pandas as pd
+
+# Ensure columns exist
+columns_needed = ['TobaccoUse_%', 'AlcoholPerCapita_Litres']
+missing_cols = [c for c in columns_needed if c not in df_filtered.columns]
+if missing_cols:
+    print(f"Missing columns: {missing_cols}")
+else:
+    # Drop rows with missing values
+    df_clean = df_filtered.dropna(subset=columns_needed)
+
+    # Calculate global means
+    mean_tobacco = df_clean['TobaccoUse_%'].mean()
+    mean_alcohol = df_clean['AlcoholPerCapita_Litres'].mean()
+
+    #print(f"Global mean Tobacco use (%): {mean_tobacco:.2f}")
+    #print(f"Global mean Alcohol use (litres per capita): {mean_alcohol:.2f}")
+
+```
+
+```{python}
+import plotly.express as px
+import pandas as pd
+
+# Define columns and grouping
+columns_needed = ['TobaccoUse_%', 'AlcoholPerCapita_Litres']
+group_cols = ['WorldBankRegion', 'IncomeLevel']
+
+# Clean data
+df_clean = df_filtered.dropna(subset=columns_needed + group_cols)
+
+# Calculate mean by WorldBankRegion
+mean_region = df_clean.groupby('WorldBankRegion')[columns_needed].mean().reset_index()
+
+# Melt for Plotly
+mean_region_melted = mean_region.melt(
+    id_vars='WorldBankRegion', 
+    value_vars=columns_needed,
+    var_name='Indicator', 
+    value_name='MeanValue'
+)
+
+# Map to human-readable labels
+label_map = {
+    'TobaccoUse_%': 'Tobacco Use (%)',
+    'AlcoholPerCapita_Litres': 'Alcohol Use (L per capita)'
+}
+mean_region_melted['Indicator'] = mean_region_melted['Indicator'].map(label_map)
+
+# Plot grouped bar chart
+fig = px.bar(
+    mean_region_melted, 
+    x='WorldBankRegion', 
+    y='MeanValue', 
+    color='Indicator', 
+    barmode='group',
+    title='Tobacco and Alcohol Use by Region: 2022'
+)
+
+fig.update_layout(
+    yaxis_title='Average',
+    xaxis_title='Region',
+    template='plotly_white'
+)
+
+fig.show()
+
+```
+
+# Key take-away messages
+
+*Global Substance Use Snapshot*:The World Health Statistics dataset (220 records, 8 variables) captures major global indicators, revealing an average tobacco use of 19.98% and alcohol consumption of 5.3 litres per capita; a concise reflection of global behavioural health risks.
+
+*Regional and Income-Level Differences*: Substance use patterns vary sharply by region and income group. Tobacco use peaks in middle-income regions like East Asia & Pacific (28–32%), while alcohol consumption is highest in high-income countries such as those in Europe & Central Asia and North America (10–11 litres per capita).
+
+*Geographic Disparities*: The 2022 tobacco use map shows the highest prevalence (30–40%) in Asia and Eastern Europe, contrasting with lower rates (<15%) in Africa and the Americas, reflecting differing cultural, regulatory, and policy contexts.
+
+*Alcohol Consumption Hotspots*:The alcohol use map reveals extremely high per capita consumption (14–16+ litres) in parts of Central and Eastern Europe, moderate use (6–12 litres) in Western Europe and the Americas, and very low levels (<2 litres) across Africa, South Asia, and the Middle East.
+
+*Non-Linear Relationship Between Tobacco and Alcohol Use*:
+The scatter plot and cubic spline analysis show a non-linear link between tobacco and alcohol use: consumption rises with tobacco use up to a moderate level, then plateaus or declines. The model explained 10% of the variance (R² = 0.103), suggesting other contextual factors strongly influence global alcohol consumption patterns.
+
+```{python}
+# Save the filtered dataset for reproducibility
+out_path = Path('GRAPH_tobacco_alcohol_filtered_qmd.csv')
+df_filtered.to_csv(out_path, index=False)
+#print('Saved filtered CSV to', out_path)
+```

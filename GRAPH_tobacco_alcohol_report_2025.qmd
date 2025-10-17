@@ -21,7 +21,7 @@ execute:
 The World Health Statistics dataset, provided by the World Health Organization (WHO), offers a comprehensive annual compilation of over 50 health-related indicators across its 194 Member States. This dataset serves as a critical resource for monitoring progress towards the Sustainable Development Goals (SDGs), particularly those related to health and well-being. It encompasses a wide array of data, including metrics on life expectancy, mortality rates, disease prevalence, and access to health services. By analyzing this dataset, researchers and policymakers can gain valuable insights into global health trends, identify disparities among regions and income groups, and inform strategies to improve health outcomes worldwide.
 
 
-# Load & Inspect World Health Statistics dataset
+# Load & Inspect World Health Statistics Data
 
 ```{python}
 # import standard libraries
@@ -49,7 +49,7 @@ else:
 df = pd.read_csv("GRAPH_tobacco_alcohol_processed.csv")
 #df.head(5)
 ```
-## World Health Statistics dataset
+## World Health Statistics Data
 
 This dataset contains 220 records and 8 variables, covering key global health indicators from the WHO World Health Statistics. The main variables include Location, Year, Tobacco use (%), Alcohol treatment coverage (%), Drug treatment coverage (%), Alcohol per capita consumption (litres), World Bank region, and Income level. The dataset provides both behavioural and service coverage indicators, allowing comparisons across countries and economic groups. It can be used to analyse global and regional trends in tobacco and alcohol use, treatment coverage, and related health outcomes, supporting evidence-based decision-making and policy planning in global public health.
 
@@ -64,7 +64,7 @@ The overall average tobacco use (%) across countries and years is 19.98, while t
 ```
 
 
-## Tobacco and alcohol use by region and income Level
+## Tobacco and alcohol use by region and income level
 
 Tobacco and alcohol use vary substantially across regions and income levels. In East Asia & Pacific, middle-income countries show higher tobacco use (28–32%) but lower alcohol consumption (3 litres) compared with high-income countries (20% tobacco, 5.4 litres alcohol). Europe & Central Asia and North America exhibit moderate to high tobacco use (~26%) and higher alcohol consumption (10–11 litres). Latin America & the Caribbean and Sub-Saharan Africa report lower tobacco use (5–14%) and variable alcohol consumption (2–7 litres), while South Asia and the Middle East, North Africa, Afghanistan & Pakistan maintain moderate tobacco use (16–25%) but very low alcohol use (<2 litres). Overall, tobacco tends to be higher in middle-income regions, whereas alcohol consumption is highest in high-income countries, with substantial variation within regions.
 
@@ -135,7 +135,7 @@ df_filtered = df_filtered.loc[mask].reset_index(drop=True)
 df_filtered.head()
 ```
 
-# Scatter Plot (Tobacco vs Alcohol), animated by Year
+# Tobacco use vs consumed alcohol litres per capita animated by year
 
 The relationship between tobacco use and alcohol consumption per capita shows a gently curved, non-linear pattern. Alcohol consumption tends to rise with increasing tobacco use up to moderate levels, after which it plateaus and declines slightly at higher tobacco prevalence rates. The smoothed curve captures nuanced variations that suggest complex behavioral or contextual factors influencing both habits.
 
